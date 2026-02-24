@@ -1,0 +1,55 @@
+trigger:
+- main
+
+variables:
+  imageName: 'hello-mlops-app'
+  acrName: 'youracrname.azurecr.io'
+  tag: '$(Build.BuildId)'
+
+stages:
+
+# -----------------------
+# BUILD STAGE
+# -----------------------
+- stage: Build
+  jobs:
+  - job: BuildAndTest
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+
+    - script: |
+        pip install -r requirements.txt
+        pytest
+      displayName: 'Run Tests'
+
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'ACR-Service-Connection'
+        repository: '$(imageName)'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        tags: |
+          $(tag)
+
+# -----------------------
+# DEPLOY STAGE
+# -----------------------
+- stage: Deploy
+  dependsOn: Build
+  jobs:
+  - job: DeployToWebApp
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - task: AzureWebAppContainer@1
+      inputs:
+        azureSubscription: 'Azure-Service-Connection'
+        appName: 'hello-mlops-webapp'
+        containers: |
+          $(acrName)/$(imageName):$(tag)
