@@ -1,4 +1,4 @@
-name: Build and Push to ACR
+name: Build, Test and Push to ACR
 
 on:
   push:
@@ -14,15 +14,46 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      # -------------------------
+      # Install Python
+      # -------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # -------------------------
+      # Install Dependencies
+      # -------------------------
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # -------------------------
+      # Run Tests
+      # -------------------------
+      - name: Run Tests
+        run: |
+          pytest
+
+      # -------------------------
+      # Login to ACR
+      # -------------------------
       - name: Login to Azure Container Registry
         run: |
           echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
           -u ${{ secrets.ACR_USERNAME }} --password-stdin
 
+      # -------------------------
+      # Build Docker Image
+      # -------------------------
       - name: Build Docker Image
         run: |
           docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }} .
 
+      # -------------------------
+      # Push Docker Image
+      # -------------------------
       - name: Push Docker Image
         run: |
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }}
