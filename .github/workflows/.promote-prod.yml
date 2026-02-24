@@ -1,32 +1,32 @@
-name: Promote to Production
+    name: Promote to Production
 
-on:
-  workflow_dispatch:
-    inputs:
-      image_tag:
-        description: 'Enter image tag to promote (e.g., 12)'
-        required: true
+    on:
+    workflow_dispatch:
+        inputs:
+        image_tag:
+            description: 'Enter image tag to promote (e.g., 12)'
+            required: true
 
-jobs:
-  deploy-production:
-    runs-on: ubuntu-latest
+    jobs:
+    deploy-production:
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+        steps:
+        - name: Azure Login
+            uses: azure/login@v2
+            with:
+            creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy Selected Image to Production
-        run: |
-          az webapp config container set \
-            --name ajay-mlops-prod \
-            --resource-group rg-mlops-demo \
-            --container-image-name ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.event.inputs.image_tag }} \
-            --container-registry-url https://${{ secrets.ACR_LOGIN_SERVER }} \
-            --container-registry-user ${{ secrets.ACR_USERNAME }} \
-            --container-registry-password ${{ secrets.ACR_PASSWORD }}
+        - name: Deploy Selected Image to Production
+            run: |
+            az webapp config container set \
+                --name ajay-mlops-webapp-docker-acr-prod \
+                --resource-group rg-mlops-demo \
+                --container-image-name ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.event.inputs.image_tag }} \
+                --container-registry-url https://${{ secrets.ACR_LOGIN_SERVER }} \
+                --container-registry-user ${{ secrets.ACR_USERNAME }} \
+                --container-registry-password ${{ secrets.ACR_PASSWORD }}
 
-          az webapp restart \
-            --name ajay-mlops-prod \
-            --resource-group rg-mlops-demo
+            az webapp restart \
+                --name ajay-mlops-webapp-docker-acr-prod \
+                --resource-group rg-mlops-demo
