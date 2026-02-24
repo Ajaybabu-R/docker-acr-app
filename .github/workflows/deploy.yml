@@ -1,17 +1,14 @@
-name: CI-CD Pipeline
+name: CI-Staging
 
 on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 jobs:
 
   build:
     runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ github.run_number }}
 
     steps:
       - uses: actions/checkout@v3
@@ -36,47 +33,21 @@ jobs:
         run: |
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }}
 
-  deploy-staging:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to Staging Web App
+      - name: Deploy to Staging
         run: |
           az webapp config container set \
             --name ajay-mlops-webapp-docker-acr \
             --resource-group rg-mlops-demo \
-            --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }} \
-            --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }}
+            --container-image-name ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }} \
+            --container-registry-url https://${{ secrets.ACR_LOGIN_SERVER }} \
+            --container-registry-user ${{ secrets.ACR_USERNAME }} \
+            --container-registry-password ${{ secrets.ACR_PASSWORD }}
 
           az webapp restart \
             --name ajay-mlops-webapp-docker-acr \
-            --resource-group rg-mlops-demo
-
-  deploy-production:
-    if: github.event_name == 'workflow_dispatch'
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Deploy to Production Web App
-        run: |
-          az webapp config container set \
-            --name ajay-mlops-prod \
-            --resource-group rg-mlops-demo \
-            --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }} \
-            --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }}
-
-          az webapp restart \
-            --name ajay-mlops-prod \
             --resource-group rg-mlops-demo
