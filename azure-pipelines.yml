@@ -1,28 +1,55 @@
-name: Build and Push to ACR
+trigger:
+- master
 
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
+variables:
+  imageName: 'hello-mlops-app'
+  acrName: 'youracrname.azurecr.io'
+  tag: '$(Build.BuildId)'
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+stages:
+
+# -----------------------
+# BUILD STAGE
+# -----------------------
+- stage: Build
+  jobs:
+  - job: BuildAndTest
+    pool:
+      vmImage: 'ubuntu-latest'
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
 
-      - name: Login to Azure Container Registry
-        run: |
-          echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
-          -u ${{ secrets.ACR_USERNAME }} --password-stdin
+    - script: |
+        pip install -r requirements.txt
+        pytest
+      displayName: 'Run Tests'
 
-      - name: Build Docker Image
-        run: |
-          docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }} .
+    - task: Docker@2
+      inputs:
+        containerRegistry: 'ACR-Service-Connection'
+        repository: '$(imageName)'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        tags: |
+          $(tag)
 
-      - name: Push Docker Image
-        run: |
-          docker push ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }}
+# -----------------------
+# DEPLOY STAGE
+# -----------------------
+- stage: Deploy
+  dependsOn: Build
+  jobs:
+  - job: DeployToWebApp
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+    - task: AzureWebAppContainer@1
+      inputs:
+        azureSubscription: 'Azure-Service-Connection'
+        appName: 'hello-mlops-webapp'
+        containers: |
+          $(acrName)/$(imageName):$(tag)
