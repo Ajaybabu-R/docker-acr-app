@@ -1,4 +1,4 @@
-name: Build, Test and Push to ACR
+name: CI-CD Pipeline
 
 on:
   push:
@@ -7,53 +7,56 @@ on:
   workflow_dispatch:
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ github.run_number }}
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      # -------------------------
-      # Install Python
-      # -------------------------
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
-      # -------------------------
-      # Install Dependencies
-      # -------------------------
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest
 
-      # -------------------------
-      # Run Tests
-      # -------------------------
-      - name: Run Tests
-        run: |
-          pytest
-
-      # -------------------------
-      # Login to ACR
-      # -------------------------
-      - name: Login to Azure Container Registry
+      - name: Login to ACR
         run: |
           echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} \
           -u ${{ secrets.ACR_USERNAME }} --password-stdin
 
-      # -------------------------
-      # Build Docker Image
-      # -------------------------
-      - name: Build Docker Image
+      - name: Build Image
         run: |
           docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }} .
 
-      # -------------------------
-      # Push Docker Image
-      # -------------------------
-      - name: Push Docker Image
+      - name: Push Image
         run: |
           docker push ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }}
+
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Staging Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ajay-mlops-webapp-docker-acr
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }}
+          publish-profile: ${{ secrets.STAGING_PUBLISH_PROFILE }}
+
+  deploy-production:
+    if: github.event_name == 'workflow_dispatch'
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Production Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ajay-mlops-prod
+          images: ${{ secrets.ACR_LOGIN_SERVER }}/hello-mlops-app:${{ github.run_number }}
+          publish-profile: ${{ secrets.PROD_PUBLISH_PROFILE }}
